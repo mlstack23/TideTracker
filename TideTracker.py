@@ -10,6 +10,7 @@
 ****************************************************************
 '''
 
+import config
 import sys
 import os
 import time
@@ -38,17 +39,17 @@ Location specific info required
 '''
 
 # Optional, displayed on top left
-LOCATION = ''
+LOCATION = config.location
 # NOAA Station Code for tide data
-StationID = #######
+StationID = config.station_id
 
 # For weather data
 # Create Account on openweathermap.com and get API key
-API_KEY = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+API_KEY = config.api_key
 # Get LATITUDE and LONGITUDE of location
-LATITUDE = 'XX.XXXXXX'
-LONGITUDE = '-XX.XXXXXX'
-UNITS = 'imperial'
+LATITUDE = config.latitude
+LONGITUDE = config.longitude
+UNITS = config.units
 
 # Create URL for API call
 BASE_URL = 'http://api.openweathermap.org/data/2.5/onecall?'
@@ -90,7 +91,7 @@ def display_error(error_source):
     draw = ImageDraw.Draw(error_image)
     draw.text((100, 150), error_source +' ERROR', font=font50, fill=black)
     draw.text((100, 300), 'Retrying in 30 seconds', font=font22, fill=black)
-    current_time = datetime.now().strftime('%H:%M')
+    current_time = dt.datetime.now().strftime('%H:%M')
     draw.text((300, 365), 'Last Refresh: ' + str(current_time), font = font50, fill=black)
     # Save the error image
     error_image_file = 'error.png'
@@ -151,6 +152,7 @@ def past24(StationID):
         end_date=todaystr,
         product="water_level",
         datum="MLLW",
+        units='english' if UNITS == "imperial" else "metric",
         time_zone="lst_ldt")
 
     return WaterLevel
@@ -170,6 +172,7 @@ def plotTide(TideData):
     #axs.xaxis.set_tick_params(labelsize=20)
     #axs.yaxis.set_tick_params(labelsize=20)
     plt.savefig('images/TideLevel.png', dpi=60)
+    plt.close()
     #plt.show()
 
 
@@ -192,6 +195,7 @@ def HiLo(StationID):
         product="predictions",
         datum="MLLW",
         interval="hilo",
+        units='english' if UNITS == "imperial" else "metric",
         time_zone="lst_ldt")
 
     return TideHiLo
@@ -227,6 +231,8 @@ print('Initializing and clearing screen.')
 epd = epd7in5_V2.EPD() # Create object for display functions
 epd.init()
 epd.Clear()
+
+
 
 while True:
     # Get weather data
@@ -366,11 +372,15 @@ while True:
     draw.text((460,200), nx_precip_percent, font=font15, fill=black)
 
     # Next Next Day Forcast
+    # Center day of week
+    nx_nx_day_of_week = (now + dt.timedelta(days=2)).strftime('%A')
+    w, h = draw.textsize(nx_nx_day_of_week, font=font22)
+    center = int(700-(w/2))
     icon_file = nx_nx_icon + '.png'
     icon_image = Image.open(os.path.join(icondir, icon_file))
     icon_image = icon_image.resize((130,130))
     template.paste(icon_image, (635, 50))
-    draw.text((625,20), 'Next-Next Day', font=font22, fill=black)
+    draw.text((center,20), nx_nx_day_of_week, font=font22, fill=black)
     draw.text((615,180), nx_nx_day_high, font=font15, fill=black)
     draw.text((715,180), nx_nx_day_low, font=font15, fill=black)
     draw.text((660,200), nx_nx_precip_percent, font=font15, fill=black)
@@ -404,16 +414,20 @@ while True:
 
     # Display tide preditions
     y_loc = 300 # starting location of list
+    if UNITS == "imperial":
+        tideunits = "ft"
+    else:
+        tideunits = "m"
     # Iterate over preditions
     for index, row in hilo_daily.iterrows():
         # For high tide
         if row['hi_lo'] == 'H':
             tide_time = index.strftime("%H:%M")
-            tidestr = "High: " + tide_time
+            tidestr = "High: " + tide_time + " | " + "{:.2f}".format(row['predicted_wl']) + tideunits
         # For low tide
         elif row['hi_lo'] == 'L':
             tide_time = index.strftime("%H:%M")
-            tidestr = "Low:  " + tide_time
+            tidestr = "Low:  " + tide_time + " | " + "{:.2f}".format(row['predicted_wl']) + tideunits
 
         # Draw to display image
         draw.text((40,y_loc), tidestr, font=font15, fill=black)
@@ -426,5 +440,5 @@ while True:
     # Close the template file
     template.close()
 
-    write_to_screen(screen_output_file, 600)
-    #epd.Clear()
+    #write_to_screen(screen_output_file, 600)
+    epd.Clear()

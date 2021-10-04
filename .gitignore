@@ -1,0 +1,6 @@
+data.txt
+config.py
+images/error.png
+.DS_Store
+.idea
+***/__pycache__
