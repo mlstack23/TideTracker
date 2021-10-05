@@ -1,4 +1,4 @@
 noaa_coops
 matplotlib
 numpy
-Jetson.GPIO
+Astral

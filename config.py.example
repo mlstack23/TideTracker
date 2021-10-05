@@ -11,3 +11,5 @@ api_key = ''
 latitude = 'XX.XXX'
 longitude = '-XX.XXX'
 units = 'imperial'
+
+timezone = "America/Los_Angeles"

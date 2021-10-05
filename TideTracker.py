@@ -1,4 +1,4 @@
-'''
+"""
 ****************************************************************
 ****************************************************************
 
@@ -8,19 +8,21 @@
 
 ****************************************************************
 ****************************************************************
-'''
+"""
 
 import config
 import sys
 import os
 import time
-import traceback
-import requests, json
-from io import BytesIO
+import math
+import decimal
+import requests
+import json
 import noaa_coops as nc
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime as dt
+from astral import sun, LocationInfo
 
 sys.path.append('lib')
 from waveshare_epd import epd7in5_V2
@@ -29,6 +31,7 @@ from PIL import Image, ImageDraw, ImageFont
 picdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'images')
 icondir = os.path.join(picdir, 'icon')
 fontdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'font')
+moondir = os.path.join(picdir, 'moon')
 
 '''
 ****************************************************************
@@ -51,10 +54,11 @@ LATITUDE = config.latitude
 LONGITUDE = config.longitude
 UNITS = config.units
 
+TIMEZONE = config.timezone
+
 # Create URL for API call
 BASE_URL = 'http://api.openweathermap.org/data/2.5/onecall?'
-URL = BASE_URL + 'lat=' + LATITUDE + '&lon=' + LONGITUDE + '&units=' + UNITS +'&appid=' + API_KEY
-
+URL = BASE_URL + 'lat=' + LATITUDE + '&lon=' + LONGITUDE + '&units=' + UNITS + '&appid=' + API_KEY
 
 '''
 ****************************************************************
@@ -64,9 +68,10 @@ Functions and defined variables
 ****************************************************************
 '''
 
+
 # define funciton for writing image and sleeping for specified time
 def write_to_screen(image, sleep_seconds):
-    print('Writing to screen.') # for debugging
+    print('Writing to screen.')  # for debugging
     # Create new blank image template matching screen resolution
     h_image = Image.new('1', (epd.width, epd.height), 255)
     # Open the template
@@ -75,10 +80,10 @@ def write_to_screen(image, sleep_seconds):
     h_image.paste(screen_output_file, (0, 0))
     epd.display(epd.getbuffer(h_image))
     # Sleep
-    epd.sleep() # Put screen to sleep to prevent damage
-    print('Sleeping for ' + str(sleep_seconds) +'.')
-    time.sleep(sleep_seconds) # Determines refresh rate on data
-    epd.init() # Re-Initialize screen
+    epd.sleep()  # Put screen to sleep to prevent damage
+    print('Sleeping for ' + str(sleep_seconds) + '.')
+    time.sleep(sleep_seconds)  # Determines refresh rate on data
+    epd.init()  # Re-Initialize screen
 
 
 # define function for displaying error
@@ -89,10 +94,10 @@ def display_error(error_source):
     error_image = Image.new('1', (epd.width, epd.height), 255)
     # Initialize the drawing
     draw = ImageDraw.Draw(error_image)
-    draw.text((100, 150), error_source +' ERROR', font=font50, fill=black)
+    draw.text((100, 150), error_source + ' ERROR', font=font50, fill=black)
     draw.text((100, 300), 'Retrying in 30 seconds', font=font22, fill=black)
     current_time = dt.datetime.now().strftime('%H:%M')
-    draw.text((300, 365), 'Last Refresh: ' + str(current_time), font = font50, fill=black)
+    draw.text((300, 365), 'Last Refresh: ' + str(current_time), font=font50, fill=black)
     # Save the error image
     error_image_file = 'error.png'
     error_image.save(os.path.join(picdir, error_image_file))
@@ -131,7 +136,7 @@ def getWeather(URL):
 
     else:
         # Call function to display HTTP error
-        display_error('HTTP')
+        display_error('HTTP Error: ' + str(response.status_code))
 
 
 # last 24 hour data, add argument for start/end_date
@@ -165,15 +170,11 @@ def plotTide(TideData):
     TideData['water_level'] = TideData['water_level'] - minlevel
 
     # Create Plot
-    fig, axs = plt.subplots(figsize=(12, 4))
+    fig, axs = plt.subplots(figsize=(8, 4))
     TideData['water_level'].plot.area(ax=axs, color='black')
     plt.title('Tide- Past 24 Hours', fontsize=20)
-    #fontweight="bold",
-    #axs.xaxis.set_tick_params(labelsize=20)
-    #axs.yaxis.set_tick_params(labelsize=20)
     plt.savefig('images/TideLevel.png', dpi=60)
     plt.close()
-    #plt.show()
 
 
 # Get High and Low tide info
@@ -201,6 +202,33 @@ def HiLo(StationID):
     return TideHiLo
 
 
+def getMoonPosition(now=None):
+    if now is None:
+        now = dt.datetime.now()
+
+    diff = now - dt.datetime(2001, 1, 1)
+    days = dec(diff.days) + (dec(diff.seconds) / dec(86400))
+    lunations = dec("0.20439731") + (days * dec("0.03386319269"))
+
+    return lunations % dec(1)
+
+
+def getMoonPhase(pos):
+    index = (pos * dec(8)) + dec("0.5")
+    index = math.floor(index)
+    return index - 1
+
+
+dec = decimal.Decimal
+moon_phases = ["New Moon",
+               "Waxing Crescent",
+               "First Quarter",
+               "Waxing Gibbous",
+               "Full Moon",
+               "Waning Gibbous",
+               "Last Quarter",
+               "Waning Crescent"]
+
 # Set the font sizes
 font15 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 15)
 font20 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 20)
@@ -217,7 +245,6 @@ black = 'rgb(0,0,0)'
 white = 'rgb(255,255,255)'
 grey = 'rgb(235,235,235)'
 
-
 '''
 ****************************************************************
 
@@ -228,16 +255,15 @@ Main Loop
 
 # Initialize and clear screen
 print('Initializing and clearing screen.')
-epd = epd7in5_V2.EPD() # Create object for display functions
+epd = epd7in5_V2.EPD()  # Create object for display functions
 epd.init()
 epd.Clear()
-
-
 
 while True:
     # Get weather data
     data = getWeather(URL)
 
+    print("Retrieved weather data from OWM")
     # get current dict block
     current = data['current']
     # get current
@@ -258,7 +284,7 @@ while True:
     daily = data['daily']
     # get daily precip
     daily_precip_float = daily[0]['pop']
-    #format daily precip
+    # format daily precip
     daily_precip_percent = daily_precip_float * 100
     # get min and max temp
     daily_temp = daily[0]['temp']
@@ -268,13 +294,13 @@ while True:
     # Set strings to be printed to screen
     string_location = LOCATION
     string_temp_current = format(temp_current, '.0f') + u'\N{DEGREE SIGN}F'
-    string_feels_like = 'Feels like: ' + format(feels_like, '.0f') +  u'\N{DEGREE SIGN}F'
+    string_feels_like = 'Feels like: ' + format(feels_like, '.0f') + u'\N{DEGREE SIGN}F'
     string_humidity = 'Humidity: ' + str(humidity) + '%'
     string_wind = 'Wind: ' + format(wind, '.1f') + ' MPH'
     string_report = 'Now: ' + report.title()
     string_temp_max = 'High: ' + format(temp_max, '>.0f') + u'\N{DEGREE SIGN}F'
     string_temp_min = 'Low:  ' + format(temp_min, '>.0f') + u'\N{DEGREE SIGN}F'
-    string_precip_percent = 'Precip: ' + str(format(daily_precip_percent, '.0f'))  + '%'
+    string_precip_percent = 'Precip: ' + str(format(daily_precip_percent, '.0f')) + '%'
 
     # get min and max temp
     nx_daily_temp = daily[1]['temp']
@@ -282,7 +308,7 @@ while True:
     nx_temp_min = nx_daily_temp['min']
     # get daily precip
     nx_daily_precip_float = daily[1]['pop']
-    #format daily precip
+    # format daily precip
     nx_daily_precip_percent = nx_daily_precip_float * 100
 
     # get min and max temp
@@ -291,20 +317,20 @@ while True:
     nx_nx_temp_min = nx_nx_daily_temp['min']
     # get daily precip
     nx_nx_daily_precip_float = daily[2]['pop']
-    #format daily precip
+    # format daily precip
     nx_nx_daily_precip_percent = nx_nx_daily_precip_float * 100
 
     # Tomorrow Forcast Strings
     nx_day_high = 'High: ' + format(nx_temp_max, '>.0f') + u'\N{DEGREE SIGN}F'
     nx_day_low = 'Low: ' + format(nx_temp_min, '>.0f') + u'\N{DEGREE SIGN}F'
-    nx_precip_percent = 'Precip: ' + str(format(nx_daily_precip_percent, '.0f'))  + '%'
+    nx_precip_percent = 'Precip: ' + str(format(nx_daily_precip_percent, '.0f')) + '%'
     nx_weather_icon = daily[1]['weather']
     nx_icon = nx_weather_icon[0]['icon']
 
     # Overmorrow Forcast Strings
     nx_nx_day_high = 'High: ' + format(nx_nx_temp_max, '>.0f') + u'\N{DEGREE SIGN}F'
     nx_nx_day_low = 'Low: ' + format(nx_nx_temp_min, '>.0f') + u'\N{DEGREE SIGN}F'
-    nx_nx_precip_percent = 'Precip: ' + str(format(nx_nx_daily_precip_percent, '.0f'))  + '%'
+    nx_nx_precip_percent = 'Precip: ' + str(format(nx_nx_daily_precip_percent, '.0f')) + '%'
     nx_nx_weather_icon = daily[2]['weather']
     nx_nx_icon = nx_nx_weather_icon[0]['icon']
 
@@ -315,16 +341,18 @@ while True:
 
     # Tide Data
     # Get water level
+
     wl_error = True
     while wl_error == True:
         try:
             WaterLevel = past24(StationID)
             wl_error = False
+            print("Retrieved Tide Data")
         except:
-            display_error('Tide Data')
+            print("Error retrieving Tide Data")
+            display_error('Tide Data Error')
 
     plotTide(WaterLevel)
-
 
     # Open template file
     template = Image.open(os.path.join(picdir, 'template.png'))
@@ -335,73 +363,68 @@ while True:
     ## Open icon file
     icon_file = icon_code + '.png'
     icon_image = Image.open(os.path.join(icondir, icon_file))
-    icon_image = icon_image.resize((130,130))
+    icon_image = icon_image.resize((130, 130))
     template.paste(icon_image, (50, 50))
 
-    draw.text((125,10), LOCATION, font=font35, fill=black)
+    draw.text((125, 10), LOCATION, font=font35, fill=black)
 
     # Center current weather report
     w, h = draw.textsize(string_report, font=font20)
-    #print(w)
     if w > 250:
         string_report = 'Now:\n' + report.title()
 
-    center = int(120-(w/2))
-    draw.text((center,175), string_report, font=font20, fill=black)
+    center = int(120 - (w / 2))
+    draw.text((center, 175), string_report, font=font20, fill=black)
 
     # Data
-    draw.text((250,55), string_temp_current, font=font35, fill=black)
+    draw.text((250, 55), string_temp_current, font=font35, fill=black)
     y = 100
-    draw.text((250,y), string_feels_like, font=font15, fill=black)
-    draw.text((250,y+20), string_wind, font=font15, fill=black)
-    draw.text((250,y+40), string_precip_percent, font=font15, fill=black)
-    draw.text((250,y+60), string_temp_max, font=font15, fill=black)
-    draw.text((250,y+80), string_temp_min, font=font15, fill=black)
+    draw.text((250, y), string_feels_like, font=font15, fill=black)
+    draw.text((250, y + 20), string_wind, font=font15, fill=black)
+    draw.text((250, y + 40), string_precip_percent, font=font15, fill=black)
+    draw.text((250, y + 60), string_temp_max, font=font15, fill=black)
+    draw.text((250, y + 80), string_temp_min, font=font15, fill=black)
 
-    draw.text((125,218), last_update_string, font=font15, fill=black)
+    draw.text((125, 218), last_update_string, font=font15, fill=black)
 
     # Weather Forcast
     # Tomorrow
     icon_file = nx_icon + '.png'
     icon_image = Image.open(os.path.join(icondir, icon_file))
-    icon_image = icon_image.resize((130,130))
+    icon_image = icon_image.resize((130, 130))
     template.paste(icon_image, (435, 50))
-    draw.text((450,20), 'Tomorrow', font=font22, fill=black)
-    draw.text((415,180), nx_day_high, font=font15, fill=black)
-    draw.text((515,180), nx_day_low, font=font15, fill=black)
-    draw.text((460,200), nx_precip_percent, font=font15, fill=black)
+    draw.text((450, 20), 'Tomorrow', font=font22, fill=black)
+    draw.text((415, 180), nx_day_high, font=font15, fill=black)
+    draw.text((515, 180), nx_day_low, font=font15, fill=black)
+    draw.text((460, 200), nx_precip_percent, font=font15, fill=black)
 
     # Next Next Day Forcast
     # Center day of week
     nx_nx_day_of_week = (now + dt.timedelta(days=2)).strftime('%A')
     w, h = draw.textsize(nx_nx_day_of_week, font=font22)
-    center = int(700-(w/2))
+    center = int(700 - (w / 2))
     icon_file = nx_nx_icon + '.png'
     icon_image = Image.open(os.path.join(icondir, icon_file))
-    icon_image = icon_image.resize((130,130))
+    icon_image = icon_image.resize((130, 130))
     template.paste(icon_image, (635, 50))
-    draw.text((center,20), nx_nx_day_of_week, font=font22, fill=black)
-    draw.text((615,180), nx_nx_day_high, font=font15, fill=black)
-    draw.text((715,180), nx_nx_day_low, font=font15, fill=black)
-    draw.text((660,200), nx_nx_precip_percent, font=font15, fill=black)
-
+    draw.text((center, 20), nx_nx_day_of_week, font=font22, fill=black)
+    draw.text((615, 180), nx_nx_day_high, font=font15, fill=black)
+    draw.text((715, 180), nx_nx_day_low, font=font15, fill=black)
+    draw.text((660, 200), nx_nx_precip_percent, font=font15, fill=black)
 
     ## Dividing lines
-    draw.line((400,10,400,220), fill='black', width=3)
-    draw.line((600,20,600,210), fill='black', width=2)
-
+    draw.line((400, 10, 400, 220), fill='black', width=3)
+    draw.line((600, 20, 600, 210), fill='black', width=2)
 
     # Tide Info
     # Graph
     tidegraph = Image.open('images/TideLevel.png')
-    template.paste(tidegraph, (125, 240))
-
+    template.paste(tidegraph, (145, 240))
     # Large horizontal dividing line
     h = 240
     draw.line((25, h, 775, h), fill='black', width=3)
-
     # Daily tide times
-    draw.text((30,260), "Today's Tide", font=font22, fill=black)
+    draw.text((30, 260), "Today's Tide", font=font22, fill=black)
 
     # Get tide time predictions
     hilo_error = True
@@ -413,7 +436,7 @@ while True:
             display_error('Tide Prediction')
 
     # Display tide preditions
-    y_loc = 300 # starting location of list
+    y_loc = 300  # starting location of list
     if UNITS == "imperial":
         tideunits = "ft"
     else:
@@ -430,15 +453,38 @@ while True:
             tidestr = "Low:  " + tide_time + " | " + "{:.2f}".format(row['predicted_wl']) + tideunits
 
         # Draw to display image
-        draw.text((40,y_loc), tidestr, font=font15, fill=black)
-        y_loc += 25 # This bumps the next prediction down a line
+        draw.text((40, y_loc), tidestr, font=font15, fill=black)
+        y_loc += 25  # This bumps the next prediction down a line
 
+    # Lunar Phase Info
+    pos = getMoonPosition()
+    current_phase_index = getMoonPhase(pos)
+    current_phase_name = moon_phases[current_phase_index]
+    city = LocationInfo(LOCATION, LOCATION, TIMEZONE, LATITUDE, LONGITUDE)
+    sun_info = sun.sun(city.observer, dt.datetime.now(), tzinfo=city.tzinfo)
+
+    string_sunrise = "Sunrise: " + sun_info["sunrise"].strftime("%H:%M")
+    string_sunset = "Sunset:  " + sun_info["sunset"].strftime("%H:%M")
+
+    ## Open icon file
+    moon_icon = str(current_phase_index) + '.png'
+    moon_image = Image.open(os.path.join(moondir, moon_icon))
+    moon_image = moon_image.resize((150, 150))
+
+    # Vertical Dividing Line
+    draw.line((600, 250, 600, 460), fill='black', width=2)
+    # Add moon phase image
+    template.paste(moon_image, (625, 265), moon_image)
+    w, h = draw.textsize("Lunar Phase", font=font22)
+    center = int(700 - (w / 2))
+    draw.text((center, 255), "Lunar Phase", font=font22, fill=black)
+    draw.text((center, 390), current_phase_name, font=font15, fill=black)
+    draw.text((620, 420), string_sunrise, font=font20, fill=black)
+    draw.text((620, 440), string_sunset, font=font20, fill=black)
 
     # Save the image for display as PNG
     screen_output_file = os.path.join(picdir, 'screen_output.png')
     template.save(screen_output_file)
     # Close the template file
     template.close()
-
-    #write_to_screen(screen_output_file, 600)
-    epd.Clear()
+    write_to_screen(screen_output_file, 600)
