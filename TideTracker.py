@@ -22,7 +22,7 @@ import noaa_coops as nc
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime as dt
-from astral import sun, LocationInfo
+from astral import sun, LocationInfo, moon
 
 sys.path.append('lib')
 from waveshare_epd import epd7in5_V2
@@ -201,25 +201,44 @@ def HiLo(StationID):
 
     return TideHiLo
 
+#From https://github.com/PanderMusubi/lunar-phase-calendar
+def moon_phase_to_inacurate_code(phase):
+    '''Converts moon phase code to inacurate code.'''
+    phase = int(phase)
+    if phase == 0:
+        return 0
+    if 0 < phase < 7:
+        return 1
+    if phase == 7:
+        return 2
+    if 7 < phase < 14:
+        return 3
+    if phase == 14:
+        return 4
+    if 14 < phase < 21:
+        return 5
+    if phase == 21:
+        return 6
+    return 7
 
-def getMoonPosition(now=None):
-    if now is None:
-        now = dt.datetime.now()
+#From https://github.com/PanderMusubi/lunar-phase-calendar
+def day_to_moon_phase_and_accurate_code(day):
+    '''Converts day to moon phase and accurate code.'''
+    phase_today = moon.phase(day)
+    code_today = moon_phase_to_inacurate_code(phase_today)
 
-    diff = now - dt.datetime(2001, 1, 1)
-    days = dec(diff.days) + (dec(diff.seconds) / dec(86400))
-    lunations = dec("0.20439731") + (days * dec("0.03386319269"))
+    if code_today % 2 != 0:
+        return phase_today, code_today
 
-    return lunations % dec(1)
+    phase_yesterday = moon.phase(day - dt.timedelta(days=1))
+    code_yesterday = moon_phase_to_inacurate_code(phase_yesterday)
+
+    if code_today == code_yesterday:
+        return phase_today, code_today + 1
+
+    return phase_today, code_today
 
 
-def getMoonPhase(pos):
-    index = (pos * dec(8)) + dec("0.5")
-    index = math.floor(index)
-    return index - 1
-
-
-dec = decimal.Decimal
 moon_phases = ["New Moon",
                "Waxing Crescent",
                "First Quarter",
@@ -258,6 +277,7 @@ print('Initializing and clearing screen.')
 epd = epd7in5_V2.EPD()  # Create object for display functions
 epd.init()
 epd.Clear()
+
 
 while True:
     # Get weather data
@@ -457,8 +477,8 @@ while True:
         y_loc += 25  # This bumps the next prediction down a line
 
     # Lunar Phase Info
-    pos = getMoonPosition()
-    current_phase_index = getMoonPhase(pos)
+    current_phase = moon.phase(now)
+    phase_today, current_phase_index = day_to_moon_phase_and_accurate_code(now)
     current_phase_name = moon_phases[current_phase_index]
     city = LocationInfo(LOCATION, LOCATION, TIMEZONE, LATITUDE, LONGITUDE)
     sun_info = sun.sun(city.observer, dt.datetime.now(), tzinfo=city.tzinfo)
@@ -475,12 +495,12 @@ while True:
     draw.line((600, 250, 600, 460), fill='black', width=2)
     # Add moon phase image
     template.paste(moon_image, (625, 265), moon_image)
-    w, h = draw.textsize("Lunar Phase", font=font22)
+    draw.text((640, 255), "Lunar Phase", font=font22, fill=black)
+    w, h = draw.textsize(current_phase_name, font=font15)
     center = int(700 - (w / 2))
-    draw.text((center, 255), "Lunar Phase", font=font22, fill=black)
     draw.text((center, 390), current_phase_name, font=font15, fill=black)
-    draw.text((620, 420), string_sunrise, font=font20, fill=black)
-    draw.text((620, 440), string_sunset, font=font20, fill=black)
+    draw.text((635, 420), string_sunrise, font=font20, fill=black)
+    draw.text((635, 440), string_sunset, font=font20, fill=black)
 
     # Save the image for display as PNG
     screen_output_file = os.path.join(picdir, 'screen_output.png')
