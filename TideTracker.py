@@ -57,7 +57,7 @@ UNITS = config.units
 TIMEZONE = config.timezone
 
 # Create URL for API call
-BASE_URL = 'http://api.openweathermap.org/data/2.5/onecall?'
+BASE_URL = 'http://api.openweathermap.org/data/3.0/onecall?'
 URL = BASE_URL + 'lat=' + LATITUDE + '&lon=' + LONGITUDE + '&units=' + UNITS + '&appid=' + API_KEY
 
 '''
@@ -166,12 +166,12 @@ def past24(StationID):
 # Plot last 24 hours of tide
 def plotTide(TideData):
     # Adjust data for negative values
-    minlevel = TideData['v'].min()
-    TideData['v'] = TideData['v'] - minlevel
+    minlevel = TideData['water_level'].min()
+    TideData['water_level'] = TideData['water_level'] - minlevel
 
     # Create Plot
     fig, axs = plt.subplots(figsize=(8, 4))
-    TideData['v'].plot.area(ax=axs, color='black')
+    TideData['water_level'].plot.area(ax=axs, color='black')
     plt.title('Tide- Past 24 Hours', fontsize=20)
     plt.savefig('images/TideLevel.png', dpi=60)
     plt.close()
@@ -464,13 +464,13 @@ while True:
     # Iterate over preditions
     for index, row in hilo_daily.iterrows():
         # For high tide
-        if row['type'] == 'H':
+        if row['hi_lo'] == 'H':
             tide_time = index.strftime("%H:%M")
-            tidestr = "High: " + tide_time + " | " + "{:.2f}".format(row['v']) + tideunits
+            tidestr = "High: " + tide_time + " | " + "{:.2f}".format(row['predicted_wl']) + tideunits
         # For low tide
-        elif row['type'] == 'L':
+        elif row['hi_lo'] == 'L':
             tide_time = index.strftime("%H:%M")
-            tidestr = "Low:  " + tide_time + " | " + "{:.2f}".format(row['v']) + tideunits
+            tidestr = "Low:  " + tide_time + " | " + "{:.2f}".format(row['predicted_wl']) + tideunits
 
         # Draw to display image
         draw.text((40, y_loc), tidestr, font=font15, fill=black)
