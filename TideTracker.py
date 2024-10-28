@@ -249,15 +249,15 @@ moon_phases = ["New Moon",
                "Waning Crescent"]
 
 # Set the font sizes
-font15 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 15)
-font20 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 20)
-font22 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 22)
-font30 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 30)
-font35 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 35)
-font50 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 50)
-font60 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 60)
-font100 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 100)
-font160 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttc'), 160)
+font15 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 15)
+font20 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 20)
+font22 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 22)
+font30 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 30)
+font35 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 35)
+font50 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 50)
+font60 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 60)
+font100 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 100)
+font160 = ImageFont.truetype(os.path.join(fontdir, 'Font.ttf'), 160)
 
 # Set the colors
 black = 'rgb(0,0,0)'
@@ -461,7 +461,7 @@ while True:
         tideunits = "ft"
     else:
         tideunits = "m"
-    # Iterate over preditions
+    # Iterate over predictions
     for index, row in hilo_daily.iterrows():
         # For high tide
         if row['hi_lo'] == 'H':
