@@ -42,19 +42,20 @@ Location specific info required
 '''
 
 # Optional, displayed on top left
-LOCATION = config.location
+# LOCATION = config.location <- how to use config file
+LOCATION = 'Port Townsend'
 # NOAA Station Code for tide data
-StationID = config.station_id
+StationID = 9444900
 
 # For weather data
 # Create Account on openweathermap.com and get API key
-API_KEY = config.api_key
+API_KEY = '9622e602299fc67f30098119739985f1'
 # Get LATITUDE and LONGITUDE of location
-LATITUDE = config.latitude
-LONGITUDE = config.longitude
-UNITS = config.units
+LATITUDE = '48.123'
+LONGITUDE = '-122.763'
+UNITS = 'imperial'
 
-TIMEZONE = config.timezone
+TIMEZONE = 'America/Los_Angeles'
 
 # Create URL for API call
 BASE_URL = 'http://api.openweathermap.org/data/3.0/onecall?'
